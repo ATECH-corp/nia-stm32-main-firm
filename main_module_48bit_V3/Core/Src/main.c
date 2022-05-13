@@ -77,6 +77,9 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint8_t rx;
+uint8_t tx;
+
 ///////////////////////////////////////////////////////////////////////////////
 // SD Variables
 ///////////////////////////////////////////////////////////////////////////////
@@ -179,6 +182,21 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim){
 	}
 }
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+	if(huart == &huart1){
+		if(rx == '1' && logState == LOG_IDLE){
+			logState = LOG_INIT;
+			HAL_UART_Transmit_IT(&huart1, "Log start!\r\n", 13);
+		}else if(rx == '0' && logState == LOG_START){
+			logState = LOG_STOP;
+			HAL_UART_Transmit_IT(&huart1, "Log stop!\r\n", 12);
+		}
+
+		HAL_UART_Receive_IT(&huart1, &rx, 1);
+
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -237,6 +255,9 @@ int main(void)
   // [[ Start main timer ]]
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
+
+  // [[ UART Interrupt Enable ]]
+  HAL_UART_Receive_IT(&huart1, &rx, 1);
 
   /* USER CODE END 2 */
 
@@ -341,8 +362,6 @@ int main(void)
 					logState = LOG_NEXT;
 				}
 			}
-
-			// lOG STOP
 		}
 			break;
 
