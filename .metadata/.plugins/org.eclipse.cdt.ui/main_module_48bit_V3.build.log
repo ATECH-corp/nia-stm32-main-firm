@@ -1,4 +1,4 @@
-21:54:16 **** Incremental Build of configuration Debug for project main_module_48bit_V3 ****
+22:35:36 **** Incremental Build of configuration Debug for project main_module_48bit_V3 ****
 make -j8 all 
 arm-none-eabi-size   main_module_48bit_V3.elf 
    text	   data	    bss	    dec	    hex	filename
@@ -6,5 +6,5 @@ arm-none-eabi-size   main_module_48bit_V3.elf
 Finished building: default.size.stdout
  
 
-21:54:16 Build Finished. 0 errors, 0 warnings. (took 447ms)
+22:35:37 Build Finished. 0 errors, 0 warnings. (took 374ms)
 
