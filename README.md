@@ -1,0 +1,1 @@
+* 최초 실행시 CubeIDE내 CubeMX로 코드를 한번 generate 할것
