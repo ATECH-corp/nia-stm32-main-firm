@@ -238,13 +238,128 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);
 
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		// Non real-time tasks
+		switch (logState) {
+		case LOG_IDLE :
+			break;
+		case LOG_INIT:
+		{
+			char filename[20];
+			sprintf(filename, "0:/LOG%02d.BIN", log_counts);
+
+			memset(&SDFatFS, 0, sizeof(FATFS));
+			FIFO_init();
+			BSP_SD_Init();
+			if (f_mount(&SDFatFS, &SDPath[0], 1) != FR_OK) {
+				logState = LOG_ERR;
+				break;
+			}
+
+			// If first logging, erase all previous file
+			if(log_counts == 1){
+				f_unlink("0:/LOG01.BIN");
+				f_unlink("0:/LOG02.BIN");
+				f_unlink("0:/LOG03.BIN");
+				f_unlink("0:/LOG04.BIN");
+				f_unlink("0:/LOG05.BIN");
+				f_unlink("0:/LOG06.BIN");
+				f_unlink("0:/LOG07.BIN");
+				f_unlink("0:/LOG08.BIN");
+				f_unlink("0:/LOG09.BIN");
+				f_unlink("0:/LOG10.BIN");
+				f_unlink("0:/LOG11.BIN");
+				f_unlink("0:/LOG12.BIN");
+				f_unlink("0:/LOG13.BIN");
+				f_unlink("0:/LOG14.BIN");
+				f_unlink("0:/LOG15.BIN");
+				f_unlink("0:/LOG16.BIN");
+				f_unlink("0:/LOG17.BIN");
+				f_unlink("0:/LOG18.BIN");
+				f_unlink("0:/LOG19.BIN");
+				f_unlink("0:/LOG20.BIN");
+				f_unlink("0:/LOG21.BIN");
+				f_unlink("0:/LOG22.BIN");
+				f_unlink("0:/LOG23.BIN");
+				f_unlink("0:/LOG24.BIN");
+				f_unlink("0:/LOG25.BIN");
+				f_unlink("0:/LOG26.BIN");
+				f_unlink("0:/LOG27.BIN");
+				f_unlink("0:/LOG28.BIN");
+				f_unlink("0:/LOG29.BIN");
+				f_unlink("0:/LOG30.BIN");
+			}
+
+			if (f_open(&fil, filename, FA_WRITE | FA_CREATE_ALWAYS)
+					!= FR_OK) {
+				logState = LOG_ERR;
+				break;
+			} else {
+				log_bytes = 0;
+				logState = LOG_START;
+			}
+			break;
+
+		}
+		case LOG_STOP:
+			f_close(&fil);
+			f_mount(NULL, &SDPath[0], 1);
+			log_counts = 1;
+
+			logState = LOG_IDLE;
+			break;
+
+		case LOG_ERR:
+			f_close(&fil);
+			f_mount(NULL, &SDPath[0], 1);
+
+			HAL_SD_DeInit(&hsd1);
+			HAL_Delay(500);
+
+			while(1){
+				//NVIC_SystemReset();
+			}
+
+			break;
+
+		case LOG_START: {
+
+			uint8_t *tmp;
+			tmp = FIFO_get();
+			if (tmp != 0) {
+				UINT bw;
+				if ((fs_error = f_write(&fil, tmp, FIFO_BLK_SIZE, &bw)) != FR_OK) {
+					logState = LOG_ERR;
+				}
+				log_bytes += (uint64_t)bw;
+				if(log_bytes >= 1073741824){ // 1GB
+					logState = LOG_NEXT;
+				}
+			}
+
+			// lOG STOP
+		}
+			break;
+
+		case LOG_NEXT:
+			f_close(&fil);
+			f_mount(NULL, &SDPath[0], 1);
+			log_counts ++;
+			if(log_counts > 30){
+				logState = LOG_STOP;
+			}else{
+				logState = LOG_INIT;
+			}
+			break;
+
+		default:
+			break;
+		}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

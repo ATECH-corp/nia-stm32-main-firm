@@ -141,6 +141,7 @@ NVIC.SDMMC1_IRQn=true\:0\:0\:false\:false\:true\:true\:true
 NVIC.SVCall_IRQn=true\:0\:0\:false\:false\:true\:false\:false
 NVIC.SysTick_IRQn=true\:0\:0\:false\:false\:true\:false\:true
 NVIC.TIM3_IRQn=true\:0\:0\:true\:false\:true\:true\:true
+NVIC.USART1_IRQn=true\:0\:0\:false\:false\:true\:true\:true
 NVIC.UsageFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false
 PB0.GPIOParameters=GPIO_Speed
 PB0.GPIO_Speed=GPIO_SPEED_FREQ_HIGH
