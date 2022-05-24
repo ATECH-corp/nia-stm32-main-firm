@@ -19,11 +19,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sd_fifo/sd_fifo.h"
+#include "simple_sd/simple_sd.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -88,16 +88,13 @@ enum LOG_STATE{
   LOG_INIT,
   LOG_START,
   LOG_STOP,
-  LOG_NEXT,
   LOG_ERR
 };
 
 volatile enum LOG_STATE logState;
 
-FIL fil;
-FRESULT fs_error;
-
 uint64_t log_bytes;
+uint64_t log_blk;
 uint8_t log_counts;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -231,7 +228,6 @@ int main(void)
   MX_TIM8_Init();
   MX_TIM2_Init();
   MX_SDMMC1_SD_Init();
-  MX_FATFS_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -271,74 +267,40 @@ int main(void)
 			break;
 		case LOG_INIT:
 		{
-			char filename[20];
-			sprintf(filename, "0:/LOG%02d.BIN", log_counts);
-
-			memset(&SDFatFS, 0, sizeof(FATFS));
 			FIFO_init();
-			BSP_SD_Init();
-			if (f_mount(&SDFatFS, &SDPath[0], 1) != FR_OK) {
+			if (Simple_SD_Init() != HAL_OK) {
 				logState = LOG_ERR;
 				break;
 			}
 
-			// If first logging, erase all previous file
-			if(log_counts == 1){
-				f_unlink("0:/LOG01.BIN");
-				f_unlink("0:/LOG02.BIN");
-				f_unlink("0:/LOG03.BIN");
-				f_unlink("0:/LOG04.BIN");
-				f_unlink("0:/LOG05.BIN");
-				f_unlink("0:/LOG06.BIN");
-				f_unlink("0:/LOG07.BIN");
-				f_unlink("0:/LOG08.BIN");
-				f_unlink("0:/LOG09.BIN");
-				f_unlink("0:/LOG10.BIN");
-				f_unlink("0:/LOG11.BIN");
-				f_unlink("0:/LOG12.BIN");
-				f_unlink("0:/LOG13.BIN");
-				f_unlink("0:/LOG14.BIN");
-				f_unlink("0:/LOG15.BIN");
-				f_unlink("0:/LOG16.BIN");
-				f_unlink("0:/LOG17.BIN");
-				f_unlink("0:/LOG18.BIN");
-				f_unlink("0:/LOG19.BIN");
-				f_unlink("0:/LOG20.BIN");
-				f_unlink("0:/LOG21.BIN");
-				f_unlink("0:/LOG22.BIN");
-				f_unlink("0:/LOG23.BIN");
-				f_unlink("0:/LOG24.BIN");
-				f_unlink("0:/LOG25.BIN");
-				f_unlink("0:/LOG26.BIN");
-				f_unlink("0:/LOG27.BIN");
-				f_unlink("0:/LOG28.BIN");
-				f_unlink("0:/LOG29.BIN");
-				f_unlink("0:/LOG30.BIN");
-			}
+			log_blk = 1; // one block offset
+			log_bytes = 0;
+			logState = LOG_START;
 
-			if (f_open(&fil, filename, FA_WRITE | FA_CREATE_ALWAYS)
-					!= FR_OK) {
-				logState = LOG_ERR;
-				break;
-			} else {
-				log_bytes = 0;
-				logState = LOG_START;
-			}
 			break;
 
 		}
 		case LOG_STOP:
-			f_close(&fil);
-			f_mount(NULL, &SDPath[0], 1);
-			log_counts = 1;
+		{
+			// Write header
+			uint8_t *header = 0x24000000;
+			memset(header, 0, 512);
 
-			logState = LOG_IDLE;
+			header[0] = 0x12;
+			header[1] = 0x34;
+			header[2] = 0x56;
+			header[3] = 0x78;
+
+			log_blk --;
+			memcpy(header + 4, &log_blk, sizeof(uint64_t));
+			if (Simple_SD_WriteBlocks_DMA(header, 0, 1) != HAL_OK) {
+				logState = LOG_ERR;
+			}else
+				logState = LOG_IDLE;
+		}
 			break;
 
 		case LOG_ERR:
-			f_close(&fil);
-			f_mount(NULL, &SDPath[0], 1);
-
 			HAL_SD_DeInit(&hsd1);
 			HAL_Delay(500);
 
@@ -348,32 +310,18 @@ int main(void)
 
 			break;
 
-		case LOG_START: {
-
+		case LOG_START:
+		{
 			uint8_t *tmp;
 			tmp = FIFO_get();
 			if (tmp != 0) {
-				UINT bw;
-				if ((fs_error = f_write(&fil, tmp, FIFO_BLK_SIZE, &bw)) != FR_OK) {
+				if (Simple_SD_WriteBlocks_DMA(tmp, log_blk, FIFO_BLK_SIZE / 512) != HAL_OK) {
 					logState = LOG_ERR;
 				}
-				log_bytes += (uint64_t)bw;
-				if(log_bytes >= 1073741824){ // 1GB
-					logState = LOG_NEXT;
-				}
+				log_bytes += FIFO_BLK_SIZE;
+				log_blk += FIFO_BLK_SIZE / 512;
 			}
 		}
-			break;
-
-		case LOG_NEXT:
-			f_close(&fil);
-			f_mount(NULL, &SDPath[0], 1);
-			log_counts ++;
-			if(log_counts > 30){
-				logState = LOG_STOP;
-			}else{
-				logState = LOG_INIT;
-			}
 			break;
 
 		default:
@@ -465,6 +413,10 @@ static void MX_SDMMC1_SD_Init(void)
   hsd1.Init.BusWide = SDMMC_BUS_WIDE_4B;
   hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
   hsd1.Init.ClockDiv = 1;
+  if (HAL_SD_Init(&hsd1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN SDMMC1_Init 2 */
 
   /* USER CODE END SDMMC1_Init 2 */
